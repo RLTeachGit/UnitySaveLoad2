@@ -1,9 +1,10 @@
 ﻿using UnityEngine;
 using System;       //Used for Time & Date
-using System.IO;        //Used for saving
 using System.Runtime.Serialization;
-using System.Runtime.Serialization.Formatters.Binary;       //Used to format data
+
 using UnityEngine.UI;
+using System.IO;
+using System.Runtime.Serialization.Formatters.Binary;
 
 
 // This class serializes a Vector3 object.
@@ -110,223 +111,87 @@ public class SaveGame : MonoBehaviour {
     //Loading (deserialisation) works the opposite way, the list of stored attributes is loaded into a list
     //From the copies of the prefab are made and using the loaded information, put in the right place on screen
 
- 
- 
-    private string mLastError;                  //Last Error Message
 
-    public string LastErrorMessage {
+
+    private static SurrogateSelector mSurrogateExtensions = null; //Variable with lazy initialisation
+    public static SurrogateSelector SurrogateExtensions {
         get {
-            return mLastError;
-        }
-    }
-
-    //Used to access SaveLoad from entire Game
-    public static SaveGame singleton;
-    SurrogateSelector mAdditionalSerialisers;
-
-    private void Awake() {
-        if(singleton==null) {
-            mAdditionalSerialisers = ExtendSurrogates();
-            singleton = this;
-            DontDestroyOnLoad(gameObject);
-        } else if(singleton!=this) {
-            Destroy(gameObject);
+            if (mSurrogateExtensions == null) {
+                mSurrogateExtensions = new SurrogateSelector(); //Initalise the first time only, then keep it in the static
+                mSurrogateExtensions.AddSurrogate(typeof(Vector3), new StreamingContext(StreamingContextStates.All), new Vector3SerializationSurrogate());
+                mSurrogateExtensions.AddSurrogate(typeof(Vector2), new StreamingContext(StreamingContextStates.All), new Vector2SerializationSurrogate());
+                mSurrogateExtensions.AddSurrogate(typeof(Quaternion), new StreamingContext(StreamingContextStates.All), new QuaternionSerializationSurrogate());
+                mSurrogateExtensions.AddSurrogate(typeof(Color), new StreamingContext(StreamingContextStates.All), new ColourSerializationSurrogate());
+            } //Will only create it first time
+            return mSurrogateExtensions;
         }
     }
 
 
-	//Extend SurrogateSelectors for loading & saving
-	private	SurrogateSelector	ExtendSurrogates() {
-		SurrogateSelector tSS = new SurrogateSelector();
-		tSS.AddSurrogate(typeof(Vector3),new StreamingContext(StreamingContextStates.All),new Vector3SerializationSurrogate());
-		tSS.AddSurrogate(typeof(Vector2),new StreamingContext(StreamingContextStates.All),new Vector2SerializationSurrogate());
-		tSS.AddSurrogate(typeof(Quaternion),new StreamingContext(StreamingContextStates.All),new QuaternionSerializationSurrogate());
-		tSS.AddSurrogate(typeof(Color),new StreamingContext(StreamingContextStates.All),new ColourSerializationSurrogate());
-		return tSS;
-	}
-
-
-    //FileStructure
-    //Version number
-
-    [SerializeField]
-    private int CurrentVersionNumber = 3;   //Can be set in IDE
-
-    public static  int CurrentVersion {
-        get {
-            return singleton.CurrentVersionNumber;
+    static public void DoClear() {
+        if (Camera.main != null) Camera.main.transform.SetParent(null);
+        foreach (var tPeep in FindObjectsOfType<Serialise>()) { //Delete all seralisedable objects
+            Destroy(tPeep.gameObject);  //Destroy old objects
         }
     }
 
-    public  bool    Load(string vFilename) {
-        bool tSuccess = false;
-        string tFullPath = Application.persistentDataPath + "/" + vFilename;
-        FileStream tFS = null;
-        if (File.Exists(tFullPath)) {
-            try {       //This will try to run the code below, but if there is an error go straight to catch
-                BinaryFormatter tBF = new BinaryFormatter();            //use C# Binary data, that way user cannot edit it easily
-                tBF.SurrogateSelector = mAdditionalSerialisers;		//Include the code to allow serialization of Vectors & Quaternions 
-                tFS = File.Open(tFullPath, FileMode.Open);       //Open File I/O
-                int tVersionNumber = (int)tBF.Deserialize(tFS);             //Grab Version Number
-                Debug.LogFormat("Current GameVersion V{0:d} LoadGame V{1:d}", CurrentVersionNumber,tVersionNumber);
-                tSuccess=LoadVersion(tVersionNumber, tFS, tBF);      //Load using correct loader
-            } catch (Exception tE) {      //If an error happens above, comes here
-                mLastError = "Load Error:" + tE.Message;
-            } finally {     //This will run at the end of the try, if it succeeded or failed
-                if (tFS != null) {      //If we opened the file, close it again, this is in case we have an error above, we ensure file is closed
-                    tFS.Close();        //Close file
-                }
+    static  public void DoLoad() {
+    string tFilename = "TestSave";
+
+    DoClear();
+
+    string tFullPath = Application.persistentDataPath + "/" + tFilename;
+    FileStream tFS = null;
+    if (File.Exists(tFullPath)) {   //Does file exist?
+        try {       //This will try to run the code below, but if there is an error go straight to catch
+            BinaryFormatter tBF = new BinaryFormatter();            //use C# Binary data, that way user cannot edit it easily
+            tBF.SurrogateSelector = SaveGame.SurrogateExtensions;   //Add our additional SurrogateSelectors in so we can do Vectors etc.
+            tFS = File.Open(tFullPath, FileMode.Open);       //Open File I/O
+            int tItemCount = (int)tBF.Deserialize(tFS); //How many
+            while (tItemCount-- > 0) {  //Make that number of items
+                string tPrefabName = (string)tBF.Deserialize(tFS); //Which Prefab should we load
+                var tPrefab = Resources.Load<GameObject>(tPrefabName); //Load prefab
+                if (tPrefab == null) throw new Exception("No Prefab found");  //Throw error
+                var tLoadObject = Instantiate(tPrefab).GetComponent<Serialise>(); //Make new prefab and get its Serialise Component
+                tLoadObject.Load(tFS, tBF); //Set positions
             }
-        } else {
-            mLastError = tFullPath + " not found";
-        }
-        return tSuccess;
-    }
 
-
-    private bool LoadVersion(int vVersionNumber,FileStream vFS, BinaryFormatter vBF) {
-        string tOK = "OK";
-        switch (vVersionNumber) {       //Use correct loader
-
-            case 1: {
-                    int tObjectCount = (int)vBF.Deserialize(vFS);       ///Get number of Objects
-                    while(tObjectCount > 0) {
-                        SaveObject.Create(vVersionNumber, vFS, vBF);  //Get Object to create itself
-                        tObjectCount--;
-                    }
-                    mLastError = tOK;
-                    return true;
-            }
-            case 3:     //V2&3 are the same at this level
-            case 2: {
-                    GameManager.PanelInputField = (string)vBF.Deserialize(vFS);     //Version 2 feature
-                    int tObjectCount = (int)vBF.Deserialize(vFS);       ///Get number of Objects
-                    while (tObjectCount > 0) {
-                        SaveObject.Create(vVersionNumber, vFS, vBF);     //Get Object to create itself
-                        tObjectCount--;
-                    }
-                    mLastError = tOK;
-                    return true;
-                }
-            default:
-                mLastError = "Wrong Savegame Version";
-                break;
-        }
-        return false;
-    }
-
-
-    public static  bool    TestSave(string vFilename, string vText, int vAge) {
-        bool tSuccess = false;
-        string tFullPath = Application.persistentDataPath + "/" + vFilename;        //Get a safe place to store data from Unity
-        FileStream tFS = null;          //If null file was not opened
-        try {
-            BinaryFormatter tBF = new BinaryFormatter();        //Store as binary
-            tFS = File.Create(tFullPath);		//Open File
-            tBF.Serialize(tFS, vText);      //Save String
-            tBF.Serialize(tFS, vAge);      //Save Age
-            tSuccess = true;             //Only if we get here have we been successful
-        } catch (Exception tE) {        //Deal with error
-            Debug.LogErrorFormat("Save Error:", tE.Message);
-        } finally {     //Make sure file is closed, if it was open
-            if (tFS != null) {
+        } catch (Exception tE) {      //If an error happens above, comes here
+            Debug.LogErrorFormat("Load Error:{0}", tE.Message);
+        } finally {     //This will run at the end of the try, if it succeeded or failed
+            if (tFS != null) {      //If we opened the file, close it again, this is in case we have an error above, we ensure file is closed
                 tFS.Close();        //Close file
             }
         }
-        return tSuccess;
-    }
-
-    public static bool TestSaveNoErrorCheck(string vFilename, string vText, int vAge) {
-        string tFullPath = Application.persistentDataPath + "/" + vFilename;        //Get a safe place to store data from Unity
-        FileStream tFS = null;          //If null file was not opened
-        BinaryFormatter tBF = new BinaryFormatter();        //Store as binary
-        tFS = File.Create(tFullPath);		//Open File
-
-        tBF.Serialize(tFS, vText);      //Save String
-        tBF.Serialize(tFS, vAge);      //Save Age
-
-        tFS.Close();        //Close file
-        return true;
-    }
-
-    public static bool TestLoad(string vFilename, out string vName, out int vAge) {
-        bool tSuccess = false;
-        string tFullPath = Application.persistentDataPath + "/" + vFilename;
-        FileStream tFS = null;
-        vName = "Invalid Data"; //Set some defaults
-        vAge = -1;
-        if (File.Exists(tFullPath)) {   //Does file exist?
-            try {       //This will try to run the code below, but if there is an error go straight to catch
-                BinaryFormatter tBF = new BinaryFormatter();            //use C# Binary data, that way user cannot edit it easily
-                tFS = File.Open(tFullPath, FileMode.Open);       //Open File I/O
-                vName = (string)tBF.Deserialize(tFS);       //Get Name, needs cast to work
-                vAge = (int)tBF.Deserialize(tFS);       //Get Age, needs cast to work
-                tSuccess = true;        //If we get here all is well
-            } catch (Exception tE) {      //If an error happens above, comes here
-                Debug.LogErrorFormat("Load Error:", tE.Message);
-            } finally {     //This will run at the end of the try, if it succeeded or failed
-                if (tFS != null) {      //If we opened the file, close it again, this is in case we have an error above, we ensure file is closed
-                    tFS.Close();        //Close file
-                }
-            }
         } else {
             Debug.LogErrorFormat("File not found:", tFullPath);
         }
-        return tSuccess;
+
     }
 
+    static public void DoSave() {
+        string tFilename = "TestSave";
 
-
-    public bool Save(string vFilename) {
-        bool tSuccess = false;
-        string tFullPath = Application.persistentDataPath + "/" + vFilename;
-        mLastError = "";
+        string tFullPath = Application.persistentDataPath + "/" + tFilename;        //Get a safe place to store data from Unity
         FileStream tFS = null;          //If null file was not opened
         try {
             BinaryFormatter tBF = new BinaryFormatter();        //Store as binary
-			tBF.SurrogateSelector = mAdditionalSerialisers;	//Include the code to allow serialization of Vectors & Quaternions
-            tFS = File.Create(tFullPath);		//Open File
-            SaveCurrentVersion(tFS, tBF);
-            tSuccess =true;             //Only if we get here have we been successful
-            mLastError = "Saved OK";
+            tBF.SurrogateSelector = SaveGame.SurrogateExtensions;
+            tFS = File.Create(tFullPath);       //Open File, if this fails it will throw
+            Serialise[] tPeeps = FindObjectsOfType<Serialise>(); //Find all object marked as Serialiseable
+            tBF.Serialize(tFS, tPeeps.Length);  //Item count
+            foreach (var tSaveObject in tPeeps) {
+                tBF.Serialize(tFS, tSaveObject.PrefabName);  //Name of this prefab
+                tSaveObject.Save(tFS, tBF);
+            }
         } catch (Exception tE) {        //Deal with error
-            mLastError = "Save Error:" + tE.Message;
+            Debug.LogErrorFormat("Save Error:{0}", tE.Message);
         } finally {     //Make sure file is closed, if it was open
             if (tFS != null) {
                 tFS.Close();        //Close file
             }
         }
-        return tSuccess;
-    }
-
-    //Save file format for V1
-    //Version Number
-    //Number of Objects
-    //SaveObjects[] must all be Balls
-
-
-    //Save file format for V2
-    //Version Number
-    //Panel Input field
-    //Number of Objects
-    //SaveObjects[] must all be Balls
-
-    //Save file format for V3
-    //Version Number
-    //Panel Input field
-    //Number of Objects
-    //SaveObjects[] Can be other prefabs
-
-    private void    SaveCurrentVersion(FileStream vFS, BinaryFormatter vBF) {
-        vBF.Serialize(vFS, CurrentVersionNumber);          //Save Data, Current Version
-        if(CurrentVersionNumber>1) {
-            //Version 2 feature
-            vBF.Serialize(vFS, GameManager.PanelInputField);            //Save Input field Added in Version 2
-        }
-        SaveObject[] tSaveArray = FindObjectsOfType<SaveObject>();      //Find Objects which have Save code
-        vBF.Serialize(vFS, tSaveArray.Length);          //Store Number of game objects saved
-        foreach (var tSB in tSaveArray) {
-            tSB.Save(CurrentVersionNumber,vFS, vBF);         //Ask object to save itself
-        }
     }
 }
+
+ 

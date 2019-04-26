@@ -1,8 +1,11 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
+using System.IO;
+
+using System.Runtime.Serialization.Formatters.Binary;
 using UnityEngine;
 
-public class MovePeep : MonoBehaviour , SaveLoad { //Uses interface to include SaveLoad templates
+public class MovePeep : MonoBehaviour { //Uses interface to include SaveLoad templates
 
     [SerializeField]
     float RotationSpeed = 360.0f;
@@ -21,17 +24,23 @@ public class MovePeep : MonoBehaviour , SaveLoad { //Uses interface to include S
 
     Rigidbody mRB;  //Used for physics
 
+
 	// Use this for initialization
 	void Start () {
         mRB = GetComponent<Rigidbody>();
         Debug.Assert(mRB != null, "Rigidbody Missing"); //Debug
-
+        Camera.main.transform.SetParent(transform);
     }
-	
-	// Simple non-physics move
-	void FixedUpdate () {
+
+    private void OnDestroy() {
+        if (Camera.main != null) Camera.main.transform.SetParent(null);
+    }
+
+    // Simple non-physics move
+    void FixedUpdate () {
         float tForward = Input.GetAxis("Vertical");     //Forward movement
         float tRotate = Input.GetAxis("Horizontal");    //Rotation input
+        mRB.angularVelocity = Vector3.zero;
         mRB.rotation *=Quaternion.Euler(0, tRotate * RotationSpeed * Time.deltaTime, 0); //Rotate to input
         Vector3 tMovement = Vector3.zero;   //No velocity to start with
         if (isGrounded && !mIsJumping)  {  //If on ground move
@@ -46,15 +55,6 @@ public class MovePeep : MonoBehaviour , SaveLoad { //Uses interface to include S
         mRB.position+=tMovement;
     }
 
-    public bool Save() {
-        Debug.Log("Save()");
-        return true;
-    }
-
-    public bool Load() {
-        Debug.Log("Load()");
-        return true;
-    }
 
     bool    isGrounded {
         get {
