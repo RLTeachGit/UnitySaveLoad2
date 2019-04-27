@@ -10,6 +10,7 @@ public class Pickup : MonoBehaviour {
     Text mText;
 
 
+
     private void Start() {
         mText = GetComponentInChildren<Text>();
     }
