@@ -10,6 +10,6 @@ abstract public class Serialise : MonoBehaviour {
 
     public abstract string PrefabName { get; } //Used to get name of this prefab
 
-    public abstract void Load(FileStream vFS, BinaryFormatter vFormatter); //Used to load the new values in
-    public abstract void Save(FileStream vFS, BinaryFormatter vFormatter); //Used to save values out
+    public abstract void Load(FileStream vFS); //Used to load the new values in
+    public abstract void Save(FileStream vFS); //Used to save values out
 }

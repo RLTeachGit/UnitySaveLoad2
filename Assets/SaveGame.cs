@@ -113,20 +113,22 @@ public class SaveGame : MonoBehaviour {
 
 
 
-    private static SurrogateSelector mSurrogateExtensions = null; //Variable with lazy initialisation
-    public static SurrogateSelector SurrogateExtensions {
+    static  BinaryFormatter mBF; //Ref to formatter used by getter
+    
+    public  static  BinaryFormatter BF { //Lazy initialisation, gets made first time its called
         get {
-            if (mSurrogateExtensions == null) {
-                mSurrogateExtensions = new SurrogateSelector(); //Initalise the first time only, then keep it in the static
-                mSurrogateExtensions.AddSurrogate(typeof(Vector3), new StreamingContext(StreamingContextStates.All), new Vector3SerializationSurrogate());
-                mSurrogateExtensions.AddSurrogate(typeof(Vector2), new StreamingContext(StreamingContextStates.All), new Vector2SerializationSurrogate());
-                mSurrogateExtensions.AddSurrogate(typeof(Quaternion), new StreamingContext(StreamingContextStates.All), new QuaternionSerializationSurrogate());
-                mSurrogateExtensions.AddSurrogate(typeof(Color), new StreamingContext(StreamingContextStates.All), new ColourSerializationSurrogate());
-            } //Will only create it first time
-            return mSurrogateExtensions;
+            if(mBF==null) {
+                mBF = new BinaryFormatter();            //use C# Binary data, that way user cannot edit it easily
+                var tSurrogateSelector= new SurrogateSelector(); //Initalise the first time only, then keep it in the static
+                tSurrogateSelector.AddSurrogate(typeof(Vector3), new StreamingContext(StreamingContextStates.All), new Vector3SerializationSurrogate());
+                tSurrogateSelector.AddSurrogate(typeof(Vector2), new StreamingContext(StreamingContextStates.All), new Vector2SerializationSurrogate());
+                tSurrogateSelector.AddSurrogate(typeof(Quaternion), new StreamingContext(StreamingContextStates.All), new QuaternionSerializationSurrogate());
+                tSurrogateSelector.AddSurrogate(typeof(Color), new StreamingContext(StreamingContextStates.All), new ColourSerializationSurrogate());
+                mBF.SurrogateSelector = tSurrogateSelector;   //Add our additional SurrogateSelectors in so we can do Vectors etc.
+            }
+            return mBF;
         }
     }
-
 
     static public void DoClear() {
         if (Camera.main != null) Camera.main.transform.SetParent(null);
@@ -144,16 +146,14 @@ public class SaveGame : MonoBehaviour {
     FileStream tFS = null;
     if (File.Exists(tFullPath)) {   //Does file exist?
         try {       //This will try to run the code below, but if there is an error go straight to catch
-            BinaryFormatter tBF = new BinaryFormatter();            //use C# Binary data, that way user cannot edit it easily
-            tBF.SurrogateSelector = SaveGame.SurrogateExtensions;   //Add our additional SurrogateSelectors in so we can do Vectors etc.
             tFS = File.Open(tFullPath, FileMode.Open);       //Open File I/O
-            int tItemCount = (int)tBF.Deserialize(tFS); //How many
+            int tItemCount = (int)BF.Deserialize(tFS); //How many
             while (tItemCount-- > 0) {  //Make that number of items
-                string tPrefabName = (string)tBF.Deserialize(tFS); //Which Prefab should we load
+                string tPrefabName = (string)BF.Deserialize(tFS); //Which Prefab should we load
                 var tPrefab = Resources.Load<GameObject>(tPrefabName); //Load prefab
                 if (tPrefab == null) throw new Exception("No Prefab found");  //Throw error
                 var tLoadObject = Instantiate(tPrefab).GetComponent<Serialise>(); //Make new prefab and get its Serialise Component
-                tLoadObject.Load(tFS, tBF); //Set positions
+                tLoadObject.Load(tFS); //Set positions
             }
 
         } catch (Exception tE) {      //If an error happens above, comes here
@@ -175,14 +175,12 @@ public class SaveGame : MonoBehaviour {
         string tFullPath = Application.persistentDataPath + "/" + tFilename;        //Get a safe place to store data from Unity
         FileStream tFS = null;          //If null file was not opened
         try {
-            BinaryFormatter tBF = new BinaryFormatter();        //Store as binary
-            tBF.SurrogateSelector = SaveGame.SurrogateExtensions;
             tFS = File.Create(tFullPath);       //Open File, if this fails it will throw
             Serialise[] tPeeps = FindObjectsOfType<Serialise>(); //Find all object marked as Serialiseable
-            tBF.Serialize(tFS, tPeeps.Length);  //Item count
+            BF.Serialize(tFS, tPeeps.Length);  //Item count
             foreach (var tSaveObject in tPeeps) {
-                tBF.Serialize(tFS, tSaveObject.PrefabName);  //Name of this prefab
-                tSaveObject.Save(tFS, tBF);
+                BF.Serialize(tFS, tSaveObject.PrefabName);  //Name of this prefab
+                tSaveObject.Save(tFS);
             }
         } catch (Exception tE) {        //Deal with error
             Debug.LogErrorFormat("Save Error:{0}", tE.Message);

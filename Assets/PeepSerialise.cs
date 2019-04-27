@@ -16,13 +16,13 @@ public class PeepSerialise : Serialise {
         }
     }
 
-    public override void Load(FileStream vFS, BinaryFormatter vFormatter) {
-        transform.position = (Vector3)vFormatter.Deserialize(vFS); //Load Basic information
-        transform.rotation = (Quaternion)vFormatter.Deserialize(vFS);
+    public override void Load(FileStream vFS) {
+        transform.position = (Vector3)SaveGame.BF.Deserialize(vFS); //Load Basic information
+        transform.rotation = (Quaternion)SaveGame.BF.Deserialize(vFS);
     }
 
-    public override void Save(FileStream vFS, BinaryFormatter vFormatter) {
-        vFormatter.Serialize(vFS, transform.position); //Save Basic information
-        vFormatter.Serialize(vFS, transform.rotation);
+    public override void Save(FileStream vFS) {
+        SaveGame.BF.Serialize(vFS, transform.position); //Save Basic information
+        SaveGame.BF.Serialize(vFS, transform.rotation);
     }
 }

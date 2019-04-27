@@ -15,16 +15,16 @@ public class PickupSerialise : Serialise { //Uses base class as template
         }
     }
 
-    public override void Load(FileStream vFS, BinaryFormatter vFormatter) {
-        transform.position = (Vector3)vFormatter.Deserialize(vFS); //Load Basic information
-        transform.rotation = (Quaternion)vFormatter.Deserialize(vFS);
-        GetComponent<Pickup>().mTimeToLive= (float)vFormatter.Deserialize(vFS); //Also has a time to live
+    public override void Load(FileStream vFS) {
+        transform.position = (Vector3)SaveGame.BF.Deserialize(vFS); //Load Basic information
+        transform.rotation = (Quaternion)SaveGame.BF.Deserialize(vFS);
+        GetComponent<Pickup>().mTimeToLive= (float)SaveGame.BF.Deserialize(vFS); //Also has a time to live
     }
 
-    public override void Save(FileStream vFS, BinaryFormatter vFormatter) {
-        vFormatter.Serialize(vFS, transform.position); //Save Basic information
-        vFormatter.Serialize(vFS, transform.rotation);
-        vFormatter.Serialize(vFS, GetComponent<Pickup>().mTimeToLive); //Also time to live
+    public override void Save(FileStream vFS) {
+        SaveGame.BF.Serialize(vFS, transform.position); //Save Basic information
+        SaveGame.BF.Serialize(vFS, transform.rotation);
+        SaveGame.BF.Serialize(vFS, GetComponent<Pickup>().mTimeToLive); //Also time to live
 
     }
 }
