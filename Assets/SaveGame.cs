@@ -164,7 +164,7 @@ public class SaveGame : MonoBehaviour {
             }
         }
         } else {
-            Debug.LogErrorFormat("File not found:", tFullPath);
+            Debug.LogErrorFormat("File not found:{0}", tFullPath);
         }
 
     }
