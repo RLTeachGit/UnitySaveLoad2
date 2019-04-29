@@ -24,12 +24,15 @@ public class MovePeep : MonoBehaviour { //Uses interface to include SaveLoad tem
 
     Rigidbody mRB;  //Used for physics
 
+    [HideInInspector]
+    public int Score=0;
 
 	// Use this for initialization
 	void Start () {
         mRB = GetComponent<Rigidbody>();
         Debug.Assert(mRB != null, "Rigidbody Missing"); //Debug
         Camera.main.transform.SetParent(transform);
+        FindObjectOfType<UpdateScore>().ScoreText = string.Format("{0}", Score);
     }
 
     private void OnDestroy() {

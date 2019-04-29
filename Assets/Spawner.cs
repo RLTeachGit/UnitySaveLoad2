@@ -11,6 +11,7 @@ public class Spawner : MonoBehaviour {
 
     Vector3 mTarget;
 
+
 	// Use this for initialization
 	void Start () {
         Debug.Assert(PickupPrefab != null, "No Prefab assigned");
@@ -22,6 +23,8 @@ public class Spawner : MonoBehaviour {
         if((transform.position-mTarget).magnitude<0.1) {
             var tPickup = Instantiate(PickupPrefab, transform.position, Quaternion.identity).GetComponent<Pickup>();
             tPickup.mTimeToLive = Random.Range(15, 60);
+            tPickup.StartColour = Random.ColorHSV();
+            tPickup.Score = 10 * Random.Range(1, 10);
             mTarget = NewTarget;
         } else {
             Vector3 tDirection = (mTarget - transform.position); //Direction to target
